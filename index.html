@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulador de telemetría industrial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0A0D12;
+    --panel: #12161D;
+    --panel-2: #171C24;
+    --border: #232A35;
+    --border-strong: #313A48;
+    --text: #E7ECF2;
+    --muted: #6B7684;
+    --dim: #8B95A3;
+    --teal: #2DD4BF;
+    --amber: #FFA726;
+    --red: #FF4D4D;
+    --font-display: 'Oswald', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-mono);
+    padding:24px;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size:32px 32px;
+    background-position:-1px -1px;
+  }
+  .wrap{max-width:1100px; margin:0 auto;}
+  header{
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:12px;
+    border-bottom:2px solid var(--border-strong);
+    padding-bottom:16px; margin-bottom:20px;
+  }
+  .brand{display:flex; align-items:center; gap:14px;}
+  .brand .mark{
+    width:38px; height:38px; border:2px solid var(--amber);
+    display:flex; align-items:center; justify-content:center;
+    font-family:var(--font-display); font-weight:600; font-size:15px;
+    color:var(--amber); flex-shrink:0;
+  }
+  .brand h1{
+    font-family:var(--font-display); font-weight:500; font-size:20px;
+    letter-spacing:0.04em; margin:0; text-transform:uppercase;
+  }
+  .brand p{margin:2px 0 0; font-size:12px; color:var(--muted); letter-spacing:0.05em;}
+  .statusline{display:flex; align-items:center; gap:18px; font-size:13px; color:var(--dim);}
+  .statusline .clock{color:var(--text); font-weight:500;}
+  .leds{display:flex; gap:6px;}
+  .led{width:9px; height:9px; border-radius:50%; background:var(--teal); transition:background .3s;}
+
+  .controls{display:flex; gap:10px; flex-wrap:wrap; margin-bottom:22px;}
+  button, select{
+    background:var(--panel); color:var(--text); border:1px solid var(--border-strong);
+    font-family:var(--font-mono); font-size:13px; padding:9px 14px;
+    cursor:pointer; display:inline-flex; align-items:center; gap:8px;
+  }
+  button:hover{border-color:var(--amber); color:var(--amber);}
+  button:active{transform:scale(0.98);}
+  select{cursor:pointer;}
+  .spacer{flex:1;}
+
+  .grid{
+    display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));
+    gap:14px; margin-bottom:20px;
+  }
+  .card{
+    background:var(--panel); border:1px solid var(--border);
+    padding:16px; position:relative; overflow:hidden;
+  }
+  .card::before{
+    content:''; position:absolute; top:0; left:0; right:0; height:2px;
+    background:var(--teal); transition:background .3s;
+  }
+  .card.warning::before{background:var(--amber);}
+  .card.danger::before{background:var(--red);}
+  .card-head{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .card-head .name{font-size:12px; color:var(--dim); letter-spacing:0.04em; text-transform:uppercase;}
+  .card-head .dot{width:6px; height:6px; border-radius:50%; background:var(--teal); margin-left:auto;}
+  .value-row{display:flex; align-items:baseline; gap:6px; margin-bottom:10px;}
+  .value{font-size:28px; font-weight:700; color:var(--text); transition:color .2s;}
+  .unit{font-size:12px; color:var(--muted);}
+  svg.spark{width:100%; height:40px; display:block;}
+  .range{font-size:11px; color:var(--muted); margin-top:8px;}
+
+  .panel-block{
+    background:var(--panel); border:1px solid var(--border);
+    padding:14px 16px; margin-bottom:16px;
+  }
+  .panel-block .label{font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.05em; margin-bottom:8px;}
+  #log{font-size:12.5px; line-height:1.8;}
+  #log div{border-bottom:1px dashed var(--border); padding:2px 0;}
+  #log div:last-child{border-bottom:none;}
+
+  #code-panel{display:none;}
+  #code-panel .code-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;}
+  pre{
+    background:#080A0D; border:1px solid var(--border);
+    padding:16px; margin:0; overflow-x:auto; max-height:520px; overflow-y:auto;
+    font-size:12px; line-height:1.6;
+  }
+  .ln{display:inline-block; width:38px; color:var(--muted); user-select:none; text-align:right; margin-right:14px;}
+  code{color:var(--dim);}
+
+  footer{margin-top:24px; font-size:11px; color:var(--muted); text-align:center;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="mark">UT</div>
+      <div>
+        <h1>Unidad de telemetría</h1>
+        <p>Planta Norte · Sección de compresión — Unidad 3</p>
+      </div>
+    </div>
+    <div class="statusline">
+      <span>Estado general: <span class="clock" id="global-status">NORMAL</span></span>
+      <span>Tiempo activo: <span class="clock" id="clock">00:00:00</span></span>
+      <div class="leds" id="led-row"></div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button id="btn-play"><span id="play-icon">⏸</span> <span id="play-label">Pausar</span></button>
+    <button id="btn-reset">↺ Reiniciar</button>
+    <select id="speed">
+      <option value="1000">Velocidad 1x</option>
+      <option value="500">Velocidad 2x</option>
+      <option value="250">Velocidad 4x</option>
+    </select>
+    <span class="spacer"></span>
+    <button id="btn-code">&lt;/&gt; Ver código fuente</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <div class="panel-block">
+    <div class="label">Registro de eventos</div>
+    <div id="log"></div>
+  </div>
+
+  <div class="panel-block" id="code-panel">
+    <div class="code-head">
+      <span class="label" style="margin:0;">Código fuente de este archivo</span>
+      <button id="btn-copy" style="font-size:11px; padding:5px 10px;">Copiar</button>
+    </div>
+    <pre><code id="code-content"></code></pre>
+  </div>
+
+  <footer>Simulación generada en el navegador — ningún dato proviene de equipos reales.</footer>
+</div>
+
+<script>
+(function(){
+  var sensors = [
+    {id:'temp', name:'Temperatura', unit:'°C', min:60, max:85, value:72, step:1.2, dec:1},
+    {id:'pressure', name:'Presión', unit:'bar', min:4, max:8, value:6, step:0.25, dec:2},
+    {id:'vibration', name:'Vibración', unit:'mm/s', min:0, max:4.5, value:2, step:0.3, dec:2},
+    {id:'rpm', name:'Velocidad', unit:'RPM', min:1400, max:1800, value:1600, step:15, dec:0},
+    {id:'flow', name:'Caudal', unit:'L/min', min:80, max:140, value:110, step:4, dec:0},
+    {id:'voltage', name:'Voltaje', unit:'V', min:210, max:230, value:220, step:1.5, dec:0}
+  ];
+
+  var grid = document.getElementById('grid');
+  var ledRow = document.getElementById('led-row');
+  var svgNS = 'http://www.w3.org/2000/svg';
+
+  sensors.forEach(function(s){
+    s.history = [];
+    for (var i=0;i<24;i++) s.history.push(s.value);
+
+    var card = document.createElement('div');
+    card.className = 'card';
+    card.id = 'card-' + s.id;
+    card.innerHTML =
+      '<div class="card-head"><span class="name">' + s.name + '</span><span class="dot" id="dot-' + s.id + '"></span></div>' +
+      '<div class="value-row"><span class="value" id="val-' + s.id + '">' + s.value.toFixed(s.dec) + '</span><span class="unit">' + s.unit + '</span></div>' +
+      '<svg class="spark" id="spark-' + s.id + '" viewBox="0 0 200 40" preserveAspectRatio="none"></svg>' +
+      '<div class="range">Rango nominal: ' + s.min + '–' + s.max + ' ' + s.unit + '</div>';
+    grid.appendChild(card);
+
+    var led = document.createElement('span');
+    led.className = 'led';
+    led.id = 'led-' + s.id;
+    ledRow.appendChild(led);
+  });
+
+  var logEl = document.getElementById('log');
+  var clockEl = document.getElementById('clock');
+  var globalStatusEl = document.getElementById('global-status');
+  var seconds = 0;
+  var running = true;
+  var timer = null;
+  var delay = 1000;
+
+  function status(s){
+    var range = s.max - s.min;
+    var margin = range * 0.12;
+    if (s.value < s.min - margin || s.value > s.max + margin) return 'danger';
+    if (s.value < s.min || s.value > s.max) return 'warning';
+    return 'success';
+  }
+  function colorFor(st){
+    return st === 'danger' ? '#FF4D4D' : st === 'warning' ? '#FFA726' : '#2DD4BF';
+  }
+  function pad(n){ return n < 10 ? '0'+n : ''+n; }
+  function updateClock(){
+    var h = Math.floor(seconds/3600), m = Math.floor((seconds%3600)/60), sec = seconds%60;
+    clockEl.textContent = pad(h)+':'+pad(m)+':'+pad(sec);
+  }
+  function addLog(text, level){
+    var color = level === 'danger' ? '#FF4D4D' : level === 'warning' ? '#FFA726' : '#6B7684';
+    var line = document.createElement('div');
+    line.style.color = color;
+    line.textContent = '[' + clockEl.textContent + ']  ' + text;
+    logEl.insertBefore(line, logEl.firstChild);
+    while (logEl.children.length > 8) logEl.removeChild(logEl.lastChild);
+  }
+
+  function tick(){
+    seconds += Math.max(1, Math.round(delay/1000));
+    updateClock();
+    var worst = 'success';
+
+    sensors.forEach(function(s){
+      var center = (s.min + s.max) / 2;
+      var change = (Math.random()-0.5) * s.step * 2 + (center - s.value) * 0.03;
+      if (Math.random() < 0.03) change += (Math.random()<0.5?-1:1) * s.step * 4;
+      s.value = s.value + change;
+      s.history.push(s.value);
+      if (s.history.length > 24) s.history.shift();
+
+      var st = status(s);
+      if (st === 'danger') worst = 'danger';
+      else if (st === 'warning' && worst !== 'danger') worst = 'warning';
+      var color = colorFor(st);
+
+      document.getElementById('val-'+s.id).style.color = color;
+      document.getElementById('val-'+s.id).textContent = s.value.toFixed(s.dec);
+      document.getElementById('dot-'+s.id).style.background = color;
+      document.getElementById('led-'+s.id).style.background = color;
+
+      var card = document.getElementById('card-'+s.id);
+      card.className = 'card' + (st !== 'success' ? ' ' + st : '');
+
+      var min = Math.min.apply(null, s.history), max = Math.max.apply(null, s.history);
+      var range = (max - min) || 1;
+      var pts = s.history.map(function(v,i){
+        var x = (i/(s.history.length-1)) * 200;
+        var y = 36 - ((v-min)/range) * 32;
+        return x.toFixed(1)+','+y.toFixed(1);
+      }).join(' ');
+      var spark = document.getElementById('spark-'+s.id);
+      spark.innerHTML = '<polyline points="'+pts+'" fill="none" stroke="'+color+'" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+
+      if (st !== 'success' && Math.random() < 0.4) {
+        addLog(s.name + ' fuera de rango: ' + s.value.toFixed(s.dec) + ' ' + s.unit, st);
+      }
+    });
+
+    globalStatusEl.textContent = worst === 'danger' ? 'ALARMA' : worst === 'warning' ? 'ADVERTENCIA' : 'NORMAL';
+    globalStatusEl.style.color = colorFor(worst);
+  }
+
+  function start(){
+    if (timer) clearInterval(timer);
+    timer = setInterval(tick, delay);
+  }
+
+  document.getElementById('btn-play').addEventListener('click', function(){
+    running = !running;
+    document.getElementById('play-icon').textContent = running ? '⏸' : '▶';
+    document.getElementById('play-label').textContent = running ? 'Pausar' : 'Reanudar';
+    if (running) start(); else clearInterval(timer);
+  });
+
+  document.getElementById('btn-reset').addEventListener('click', function(){
+    sensors.forEach(function(s){
+      s.value = (s.min + s.max) / 2;
+      s.history = [];
+      for (var i=0;i<24;i++) s.history.push(s.value);
+    });
+    seconds = 0;
+    updateClock();
+    logEl.innerHTML = '';
+    addLog('Sistema reiniciado', 'info');
+  });
+
+  document.getElementById('speed').addEventListener('change', function(){
+    delay = parseInt(this.value, 10);
+    if (running) start();
+  });
+
+  var codePanel = document.getElementById('code-panel');
+  var codeBtn = document.getElementById('btn-code');
+  var codeLoaded = false;
+  codeBtn.addEventListener('click', function(){
+    var visible = codePanel.style.display === 'block';
+    if (!visible && !codeLoaded) {
+      var html = document.documentElement.outerHTML;
+      var lines = html.split('\n');
+      var out = document.getElementById('code-content');
+      out.innerHTML = '';
+      lines.forEach(function(line, i){
+        var span = document.createElement('span');
+        span.className = 'ln';
+        span.textContent = (i+1);
+        out.appendChild(span);
+        out.appendChild(document.createTextNode(line + '\n'));
+      });
+      codeLoaded = true;
+    }
+    codePanel.style.display = visible ? 'none' : 'block';
+    codeBtn.innerHTML = visible ? '&lt;/&gt; Ver código fuente' : '&lt;/&gt; Ocultar código fuente';
+  });
+
+  document.getElementById('btn-copy').addEventListener('click', function(){
+    var text = document.getElementById('code-content').textContent;
+    if (navigator.clipboard) navigator.clipboard.writeText(text).catch(function(){});
+    var btn = this;
+    var original = btn.textContent;
+    btn.textContent = 'Copiado ✓';
+    setTimeout(function(){ btn.textContent = original; }, 1500);
+  });
+
+  addLog('Sistema iniciado', 'info');
+  updateClock();
+  start();
+})();
+</script>
+</body>
+</html>
